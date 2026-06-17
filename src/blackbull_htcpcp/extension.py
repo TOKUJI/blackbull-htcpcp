@@ -7,11 +7,11 @@ fallback) for readiness, plus GET for browser-friendly state — and an
 ``app.on_error(418)`` handler so any other code path emitting 418
 gets the same teapot JSON body.
 
-The fallback methods (POST for BREW, GET for PROPFIND / WHEN) exist
-because ``http.HTTPMethod`` in Python ≥3.11 is a ``StrEnum`` that
-rejects non-IANA verbs at construction time.  When the framework
-relaxes method validation, the registration adds the real verbs
-alongside the fallbacks automatically.
+The fallback methods (POST for BREW, GET for PROPFIND / WHEN) remain
+for clients that cannot send non-standard verbs.  BlackBull 0.42.1
+accepts any RFC 9110 §5.6.2 token as an HTTP method, so BREW,
+PROPFIND, and WHEN are now registered as first-class routes alongside
+their fallbacks.
 """
 from __future__ import annotations
 
@@ -145,13 +145,8 @@ class HtcpcpExtension:
     # ------------------------------------------------------------------
 
     def _register_brew(self, app: BlackBull) -> None:
-        """Register BREW (POST fallback) on ``/pot``."""
-        try:
-            brew_method = HTTPMethod(_BREW)
-        except ValueError:
-            brew_method = HTTPMethod.POST  # fallback until framework change
-
-        @app.route(path='/pot', methods=[brew_method])
+        """Register BREW on ``/pot``, keeping POST as a backwards-compatible alias."""
+        @app.route(path='/pot', methods=[_BREW, HTTPMethod.POST])
         async def brew_handler(scope, receive, send):
             # S007: cap the request body before we look at it.
             body = await read_body(receive)
@@ -199,16 +194,8 @@ class HtcpcpExtension:
         self._brew_handler = brew_handler
 
     def _register_propfind(self, app: BlackBull) -> None:
-        """Register PROPFIND (GET fallback) on ``/pot``."""
-        try:
-            pf_method = HTTPMethod(_PROPFIND)
-        except ValueError:
-            # No fallback — GET /pot is already taken by get_pot.
-            # PROPFIND functionality is exposed via GET /pot's body
-            # plus the PROPFIND verb when the framework supports it.
-            return
-
-        @app.route(path='/pot', methods=[pf_method])
+        """Register PROPFIND on ``/pot``."""
+        @app.route(path='/pot', methods=[_PROPFIND])
         async def propfind_handler(scope, receive, send):
             await send(Response(
                 json.dumps({
@@ -247,12 +234,7 @@ class HtcpcpExtension:
             ))
         self._when_handler = when_handler
 
-        try:
-            when_method = HTTPMethod(_WHEN)
-        except ValueError:
-            return
-
-        @app.route(path='/pot', methods=[when_method])
+        @app.route(path='/pot', methods=[_WHEN])
         async def when_direct(scope, receive, send):
             await when_handler(scope, receive, send)
         self._when_direct_handler = when_direct

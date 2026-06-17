@@ -331,14 +331,9 @@ class TestMethodRouting:
             resp = client.get('/cups')
             assert resp.status_code == 404
 
-    # -- Custom method tests (xfail until framework supports them) --
+    # -- Custom method tests --
 
     @pytest.mark.integration
-    @pytest.mark.xfail(
-        reason='HTTPMethod("BREW") raises ValueError in Python ≥3.11. '
-               'Framework change required to accept non-IANA methods.',
-        strict=True,
-    )
     def test_brew_method_routes_to_brew_handler(self):
         app = BlackBull()
         HtcpcpExtension(app=app)
@@ -347,11 +342,6 @@ class TestMethodRouting:
             assert resp.status_code == 200
 
     @pytest.mark.integration
-    @pytest.mark.xfail(
-        reason='HTTPMethod("PROPFIND") raises ValueError. '
-               'Framework change required.',
-        strict=True,
-    )
     def test_propfind_method_returns_properties(self):
         app = BlackBull()
         HtcpcpExtension(app=app)
@@ -361,11 +351,6 @@ class TestMethodRouting:
             assert 'additions-supported' in resp.json()
 
     @pytest.mark.integration
-    @pytest.mark.xfail(
-        reason='HTTPMethod("WHEN") raises ValueError. '
-               'Framework change required.',
-        strict=True,
-    )
     def test_when_method_returns_readiness(self):
         app = BlackBull()
         HtcpcpExtension(app=app)
@@ -853,16 +838,20 @@ class TestSecurityMethodCasing:
     """
 
     @pytest.mark.integration
-    def test_lowercase_brew_returns_405(self):
-        """S015a: 'brew' (lowercase) on /pot → 405.
+    def test_uppercase_brew_routes_correctly(self):
+        """S015a: 'BREW' on /pot → 200 (brew handler).
 
-        A lowercase method must not match the BREW route."""
+        httpx normalises method names to uppercase before they reach the
+        ASGI scope, so TestClient cannot send a truly lowercase method.
+        Case-sensitivity at the router level is verified by
+        BlackBull's own TestCustomMethods::test_case_sensitivity_custom_method.
+        """
         app = BlackBull()
         HtcpcpExtension(app=app)
         with TestClient(app) as client:
-            resp = client.request('brew', '/pot')
-            assert resp.status_code == 405, (
-                'S015a: Lowercase "brew" must not match BREW route')
+            resp = client.request('BREW', '/pot')
+            assert resp.status_code == 200, (
+                'S015a: BREW /pot must route to the brew handler')
 
     @pytest.mark.integration
     def test_mixed_case_post_works(self):
