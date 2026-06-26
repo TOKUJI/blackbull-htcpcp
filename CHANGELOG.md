@@ -8,6 +8,29 @@ commitment.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-06-26
+
+### Changed
+
+- `BREW`, `PROPFIND`, and `WHEN` are now registered as **first-class HTTP
+  methods** on `/pot` (and `WHEN` on `/pot/when`), so `curl -X BREW …`
+  reaches the brewing handler directly instead of being unreachable. The
+  `POST` (BREW) and `GET` (PROPFIND / WHEN) fallbacks are retained as
+  backwards-compatible aliases for clients that cannot send non-standard
+  verbs.  This removes the `try/except HTTPMethod` workarounds that
+  previously downgraded the RFC 2324 verbs to their IANA fallbacks.
+
+### Fixed
+
+- Custom RFC 2324 verbs no longer return *no response* / silently fall
+  back to `POST`/`GET`; the registered route table now exposes the real
+  methods.
+
+### Requirements
+
+- Minimum `blackbull` raised to **>= 0.42.1**, the first release whose
+  router dispatches arbitrary RFC 9110 §5.6.2 method tokens.
+
 ## [0.1.0] — 2026-06-17
 
 ### Added

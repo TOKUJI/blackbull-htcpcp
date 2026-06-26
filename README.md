@@ -11,7 +11,7 @@ The joke is well-known.  The reason to actually ship it is that HTCPCP is a smal
 Here is what the package actually puts on the wire:
 
 ```http
-POST /pot HTTP/1.1                ← BREW, while http.HTTPMethod still rejects non-IANA verbs
+BREW /pot HTTP/1.1                ← the real RFC 2324 verb (POST still works as an alias)
 Host: localhost:8000
 Accept-Additions: cream; sugar
 
@@ -59,7 +59,7 @@ After `init_app(app)` the live extension sits at `app.extensions['htcpcp']`.  Fo
 
 ## What it implements
 
-- **BREW** — start brewing.  Maps to POST on `/pot` while the stdlib `http.HTTPMethod` enum keeps rejecting non-IANA verbs.
+- **BREW** — start brewing.  Registered as a first-class `BREW` route on `/pot` (BlackBull ≥ 0.42.1 dispatches arbitrary method tokens); `POST` is kept as a backwards-compatible alias.
 - **PROPFIND** — inspect the pot's metadata.  Exposed via GET in the same window; native PROPFIND verb gated on the same framework change.
 - **WHEN** — readiness check (GET `/pot/when`).
 - **418 I'm a teapot** — RFC 2324 §2.2.2.  A teapot brewing anything that isn't tea returns 418.  Coffee pots return 200 for any brew request.
