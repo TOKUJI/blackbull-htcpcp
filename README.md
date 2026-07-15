@@ -53,9 +53,12 @@ HtcpcpExtension(app=app, pot_type='coffee')   # or pot_type='teapot'
 # Deferred form, if you configure the app elsewhere:
 ext = HtcpcpExtension(pot_type='teapot')
 ext.init_app(app)
+
+# Multiple pots on one app — pick a path per instance (default '/pot'):
+HtcpcpExtension(app=app, pot_type='teapot', path='/teapot')  # RFC 7168 teapot
 ```
 
-After `init_app(app)` the live extension sits at `app.extensions['htcpcp']`.  Four routes (BREW / PROPFIND / WHEN / GET) are registered on `/pot`, a readiness route at `/pot/when`, plus an `app.on_error(418)` handler so any 418 the rest of the app emits gets the same `message/coffeepot` body.
+After `init_app(app)` the live extension sits at `app.extensions[f'htcpcp:{path}']` (`'htcpcp:/pot'` by default).  Four routes (BREW / PROPFIND / WHEN / GET) are registered on the mount path, a readiness route at `f'{path}/when'`, plus an `app.on_error(418)` handler so any 418 the rest of the app emits gets the same `message/coffeepot` body.
 
 The RFC 2324 verbs are exposed as a public `StrEnum`, and 418 is re-exported for discoverability:
 
@@ -88,6 +91,7 @@ assert IM_A_TEAPOT == 418          # http.HTTPStatus.IM_A_TEAPOT
 |---|---|---|
 | `pot_type` | `'coffee'` | `'coffee'` or `'teapot'`.  Decides which Accept-Additions are valid and when 418 fires. |
 | `capacity_ml` | `1500` | Reported via PROPFIND.  Doesn't enforce anything — the pot is metaphorical. |
+| `path` | `'/pot'` | Mount path for the pot resource (readiness at `f'{path}/when'`).  Any absolute path; give each instance its own path to host several pots on one app. |
 
 ## Security
 

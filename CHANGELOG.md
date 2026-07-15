@@ -8,6 +8,26 @@ commitment.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-16
+
+### Added
+
+- **Multi-instance support via a `path` parameter** (default `'/pot'`).
+  All routes mount on the given path (readiness at `f'{path}/when'`),
+  and the `app.extensions` key is derived per path, so one app can host
+  e.g. an RFC 2324 coffee pot at `/pot` and an RFC 7168 teapot at
+  `/teapot` side by side. Any absolute path is accepted — the extension
+  is a building block, not a gatekeeper.
+
+### Changed
+
+- **`extension_key` is now per-instance**: `f'htcpcp:{path}'`
+  (`'htcpcp:/pot'` for the default) instead of the single class-level
+  `'htcpcp'`. Two instances on the *same* path still collide with the
+  usual `RuntimeError`. Code reading `app.extensions['htcpcp']`
+  directly must switch to the new key (undocumented surface, but noted
+  for completeness).
+
 ## [0.2.0] — 2026-07-16
 
 ### Added

@@ -59,11 +59,16 @@ class HtcpcpExtension:
 
     After ``init_app``:
 
-    * ``app.extensions['htcpcp']`` is *self*.
-    * Four routes on ``/pot`` (BREW / PROPFIND / WHEN / GET) and a
-      readiness route on ``/pot/when`` are registered.
+    * ``app.extensions[f'htcpcp:{path}']`` is *self*
+      (``'htcpcp:/pot'`` for the default path).
+    * Four routes on *path* (BREW / PROPFIND / WHEN / GET) and a
+      readiness route on ``f'{path}/when'`` are registered.
     * ``app.on_error(418)`` is wired to a JSON ``message/coffeepot``
       teapot response.
+
+    Multiple instances may coexist on one app as long as their paths
+    differ — e.g. a coffee pot at ``/pot`` and an RFC 7168 teapot at
+    ``/teapot``.
 
     Parameters
     ----------
@@ -77,12 +82,20 @@ class HtcpcpExtension:
         when the request carries explicit tea additions).
     capacity_ml:
         Reported via PROPFIND.  Metaphorical; nothing is enforced.
+    path:
+        Mount path for the pot resource (default ``'/pot'``).  The
+        readiness route is registered at ``f'{path}/when'``.  Any
+        absolute path is accepted — the extension is a building
+        block, not a gatekeeper — so an app can host an RFC 2324
+        coffee pot at ``/pot`` and an RFC 7168 teapot at ``/teapot``
+        side by side.
     """
     #: Key under which the extension registers itself in
-    #: ``app.extensions``.  Follows the ``blackbull-<name>`` →
-    #: ``<name>`` convention; not configurable to avoid a
-    #: collision-bypass loophole.
-    extension_key: str = 'htcpcp'
+    #: ``app.extensions``.  Per-path (``'htcpcp:<path>'``) so multiple
+    #: instances on different paths coexist while two instances on the
+    #: same path still collide loudly.  (Was the single key
+    #: ``'htcpcp'`` before 0.3.0.)
+    extension_key: str
 
     def __init__(
         self,
@@ -90,12 +103,18 @@ class HtcpcpExtension:
         *,
         pot_type: str = 'coffee',
         capacity_ml: int = 1500,
+        path: str = '/pot',
     ):
         if pot_type not in ('coffee', 'teapot'):
             raise ValueError(
                 f"pot_type must be 'coffee' or 'teapot'; got {pot_type!r}")
+        if not path.startswith('/'):
+            raise ValueError(
+                f"path must be absolute (start with '/'); got {path!r}")
         self._pot_type = pot_type
         self._capacity_ml = capacity_ml
+        self._path = path.rstrip('/') or '/'
+        self.extension_key = f'htcpcp:{self._path}'
         self._state = 'idle'           # idle | brewing | ready
         self._additions: list[str] = []
 
@@ -130,7 +149,7 @@ class HtcpcpExtension:
         self._register_propfind(app)
         self._register_when(app)
 
-        @app.route(path='/pot', methods=[HTTPMethod.GET])
+        @app.route(path=self._path, methods=[HTTPMethod.GET])
         async def get_pot(scope, receive, send):
             await send(self._build_response(HTTPStatus.OK))
         self._get_handler = get_pot
@@ -142,8 +161,8 @@ class HtcpcpExtension:
     # ------------------------------------------------------------------
 
     def _register_brew(self, app: BlackBull) -> None:
-        """Register BREW on ``/pot``, keeping POST as a backwards-compatible alias."""
-        @app.route(path='/pot', methods=[HtcpcpMethod.BREW, HTTPMethod.POST])
+        """Register BREW on the pot path, keeping POST as a backwards-compatible alias."""
+        @app.route(path=self._path, methods=[HtcpcpMethod.BREW, HTTPMethod.POST])
         async def brew_handler(scope, receive, send):
             # S007: cap the request body before we look at it.
             body = await read_body(receive)
@@ -191,8 +210,8 @@ class HtcpcpExtension:
         self._brew_handler = brew_handler
 
     def _register_propfind(self, app: BlackBull) -> None:
-        """Register PROPFIND on ``/pot``."""
-        @app.route(path='/pot', methods=[HtcpcpMethod.PROPFIND])
+        """Register PROPFIND on the pot path."""
+        @app.route(path=self._path, methods=[HtcpcpMethod.PROPFIND])
         async def propfind_handler(scope, receive, send):
             await send(Response(
                 json.dumps({
@@ -211,8 +230,8 @@ class HtcpcpExtension:
         self._propfind_handler = propfind_handler
 
     def _register_when(self, app: BlackBull) -> None:
-        """Register WHEN: GET /pot/when always, plus WHEN /pot when supported."""
-        @app.route(path='/pot/when', methods=[HTTPMethod.GET])
+        """Register WHEN: GET ``<path>/when`` always, plus WHEN on the pot path."""
+        @app.route(path=f'{self._path}/when', methods=[HTTPMethod.GET])
         async def when_handler(scope, receive, send):
             if self._state == 'ready':
                 body = json.dumps({'ready': True, 'when': 'now'})
@@ -231,7 +250,7 @@ class HtcpcpExtension:
             ))
         self._when_handler = when_handler
 
-        @app.route(path='/pot', methods=[HtcpcpMethod.WHEN])
+        @app.route(path=self._path, methods=[HtcpcpMethod.WHEN])
         async def when_direct(scope, receive, send):
             await when_handler(scope, receive, send)
         self._when_direct_handler = when_direct

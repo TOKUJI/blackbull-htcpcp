@@ -76,18 +76,20 @@ class TestExtensionLifecycle:
 
     @pytest.mark.integration
     def test_registers_in_app_extensions(self):
-        """R001: After init_app, app.extensions['htcpcp'] is the instance."""
+        """R001: After init_app, app.extensions['htcpcp:/pot'] is the
+        instance.  (Key is per-path since the multi-instance extension —
+        was the single key 'htcpcp' before 0.3.0.)"""
         app = BlackBull()
         ext = HtcpcpExtension()
         ext.init_app(app)
-        assert app.extensions.get('htcpcp') is ext
+        assert app.extensions.get('htcpcp:/pot') is ext
 
     @pytest.mark.integration
     def test_constructor_with_app_calls_init_app(self):
         """Convenience: HtcpcpExtension(app=app) calls init_app immediately."""
         app = BlackBull()
         ext = HtcpcpExtension(app=app)
-        assert app.extensions.get('htcpcp') is ext
+        assert app.extensions.get('htcpcp:/pot') is ext
 
     @pytest.mark.integration
     def test_key_collision_raises_runtime_error(self):
@@ -412,7 +414,7 @@ class TestCoexistence:
             assert client.get('/other').status_code == 200
             assert client.get('/pot').status_code == 200
         assert 'other' in app.extensions
-        assert 'htcpcp' in app.extensions
+        assert 'htcpcp:/pot' in app.extensions
 
 
 # ===========================================================================
@@ -921,3 +923,70 @@ class TestPublicMethodApi:
         import blackbull_htcpcp
         assert set(blackbull_htcpcp.__all__) == {
             'HtcpcpExtension', 'HtcpcpMethod', 'IM_A_TEAPOT'}
+
+
+# ===========================================================================
+# 10. Multi-instance support — configurable path
+# ===========================================================================
+
+class TestMultiInstance:
+    """Proposal extension: a `path` parameter (default '/pot') and a
+    per-path extension key so one app can host e.g. an RFC 2324 coffee
+    pot at /pot and an RFC 7168 teapot at /teapot."""
+
+    @pytest.mark.integration
+    def test_custom_path_routes_registered(self):
+        app = BlackBull()
+        HtcpcpExtension(app=app, pot_type='teapot', path='/teapot')
+        with TestClient(app) as client:
+            assert client.get('/teapot').status_code == 200
+            assert client.get('/teapot/when').status_code == 200
+            assert client.request('PROPFIND', '/teapot').status_code == 200
+
+    @pytest.mark.integration
+    def test_teapot_at_custom_path_discriminates(self):
+        """RFC 7168 behaviour is path-independent: tea additions → 200,
+        anything else → 418."""
+        app = BlackBull()
+        HtcpcpExtension(app=app, pot_type='teapot', path='/teapot')
+        with TestClient(app) as client:
+            resp = client.request('BREW', '/teapot')
+            assert resp.status_code == 418
+            resp = client.request('BREW', '/teapot',
+                                  headers={'Accept-Additions': 'milk'})
+            assert resp.status_code == 200
+
+    @pytest.mark.integration
+    def test_two_instances_coexist(self):
+        """Coffee at /pot + teapot at /teapot on one app."""
+        app = BlackBull()
+        coffee = HtcpcpExtension(app=app, pot_type='coffee')
+        tea = HtcpcpExtension(app=app, pot_type='teapot', path='/teapot')
+        assert app.extensions.get('htcpcp:/pot') is coffee
+        assert app.extensions.get('htcpcp:/teapot') is tea
+        with TestClient(app) as client:
+            assert client.get('/pot').json()['pot-type'] == 'coffee'
+            assert client.get('/teapot').json()['pot-type'] == 'teapot'
+            # Coffee additions brew at /pot but 418 at /teapot.
+            ok = client.request('BREW', '/pot',
+                                headers={'Accept-Additions': 'cream'})
+            no = client.request('BREW', '/teapot',
+                                headers={'Accept-Additions': 'cream'})
+            assert ok.status_code == 200
+            assert no.status_code == 418
+
+    @pytest.mark.integration
+    def test_same_path_collision_still_raises(self):
+        app = BlackBull()
+        HtcpcpExtension(app=app, path='/teapot')
+        ext2 = HtcpcpExtension(path='/teapot')
+        with pytest.raises(RuntimeError, match='already registered'):
+            ext2.init_app(app)
+
+    def test_path_must_start_with_slash(self):
+        with pytest.raises(ValueError, match='path'):
+            HtcpcpExtension(path='pot')
+
+    def test_extension_key_reflects_path(self):
+        assert HtcpcpExtension(path='/teapot').extension_key == 'htcpcp:/teapot'
+        assert HtcpcpExtension().extension_key == 'htcpcp:/pot'
