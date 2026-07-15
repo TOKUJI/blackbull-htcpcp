@@ -22,14 +22,11 @@ from typing import Any
 from blackbull import BlackBull, Response, read_body
 from blackbull.headers import Headers
 
+from blackbull_htcpcp.methods import HtcpcpMethod
+
 
 # RFC 2324 §2.2.1 — coffeepot content type.
 COFFEEPOT_CONTENT_TYPE = 'message/coffeepot'
-
-# RFC 2324 §2.2 — custom methods.
-_BREW = 'BREW'
-_PROPFIND = 'PROPFIND'
-_WHEN = 'WHEN'
 
 # RFC 2324 §2.2.3 — known coffee additions.
 COFFEE_ADDITIONS = frozenset({
@@ -146,7 +143,7 @@ class HtcpcpExtension:
 
     def _register_brew(self, app: BlackBull) -> None:
         """Register BREW on ``/pot``, keeping POST as a backwards-compatible alias."""
-        @app.route(path='/pot', methods=[_BREW, HTTPMethod.POST])
+        @app.route(path='/pot', methods=[HtcpcpMethod.BREW, HTTPMethod.POST])
         async def brew_handler(scope, receive, send):
             # S007: cap the request body before we look at it.
             body = await read_body(receive)
@@ -195,7 +192,7 @@ class HtcpcpExtension:
 
     def _register_propfind(self, app: BlackBull) -> None:
         """Register PROPFIND on ``/pot``."""
-        @app.route(path='/pot', methods=[_PROPFIND])
+        @app.route(path='/pot', methods=[HtcpcpMethod.PROPFIND])
         async def propfind_handler(scope, receive, send):
             await send(Response(
                 json.dumps({
@@ -234,7 +231,7 @@ class HtcpcpExtension:
             ))
         self._when_handler = when_handler
 
-        @app.route(path='/pot', methods=[_WHEN])
+        @app.route(path='/pot', methods=[HtcpcpMethod.WHEN])
         async def when_direct(scope, receive, send):
             await when_handler(scope, receive, send)
         self._when_direct_handler = when_direct

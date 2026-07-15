@@ -861,3 +861,63 @@ class TestSecurityMethodCasing:
         with TestClient(app) as client:
             resp = client.post('/pot')
             assert resp.status_code == 200
+
+
+# ===========================================================================
+# 9. Public method API — HtcpcpMethod enum + IM_A_TEAPOT re-export
+# ===========================================================================
+
+class TestPublicMethodApi:
+    """The package exposes RFC 2324 §2.2 methods as a public StrEnum and
+    re-exports 418 for discoverability, so downstream consumers stop
+    importing private constants or defining their own."""
+
+    def test_htcpcp_method_members(self):
+        from blackbull_htcpcp import HtcpcpMethod
+        assert list(HtcpcpMethod) == [
+            HtcpcpMethod.BREW, HtcpcpMethod.PROPFIND, HtcpcpMethod.WHEN]
+
+    def test_htcpcp_method_equals_plain_strings(self):
+        """StrEnum members compare equal to their string values, so code
+        that passes 'BREW' keeps working."""
+        from blackbull_htcpcp import HtcpcpMethod
+        assert HtcpcpMethod.BREW == 'BREW'
+        assert HtcpcpMethod.PROPFIND == 'PROPFIND'
+        assert HtcpcpMethod.WHEN == 'WHEN'
+        assert isinstance(HtcpcpMethod.BREW, str)
+
+    @pytest.mark.integration
+    def test_mixes_with_httpmethod_in_route_registration(self):
+        """HtcpcpMethod and http.HTTPMethod coexist in one methods list."""
+        from blackbull_htcpcp import HtcpcpMethod
+        app = BlackBull()
+
+        @app.route(path='/mixed', methods=[HtcpcpMethod.BREW, HTTPMethod.POST])
+        async def mixed(scope, receive, send):
+            await send(Response('ok'))
+
+        with TestClient(app) as client:
+            assert client.request('BREW', '/mixed').status_code == 200
+            assert client.post('/mixed').status_code == 200
+
+    @pytest.mark.integration
+    def test_extension_routes_still_reachable(self):
+        """The internal migration to HtcpcpMethod must not change the
+        wire surface: the real verbs keep working."""
+        from blackbull_htcpcp import HtcpcpMethod
+        app = BlackBull()
+        HtcpcpExtension(app=app)
+        with TestClient(app) as client:
+            assert client.request(str(HtcpcpMethod.BREW), '/pot').status_code == 200
+            assert client.request(str(HtcpcpMethod.PROPFIND), '/pot').status_code == 200
+            assert client.request(str(HtcpcpMethod.WHEN), '/pot').status_code == 200
+
+    def test_im_a_teapot_reexported(self):
+        import blackbull_htcpcp
+        assert blackbull_htcpcp.IM_A_TEAPOT is HTTPStatus.IM_A_TEAPOT
+        assert blackbull_htcpcp.IM_A_TEAPOT == 418
+
+    def test_public_all(self):
+        import blackbull_htcpcp
+        assert set(blackbull_htcpcp.__all__) == {
+            'HtcpcpExtension', 'HtcpcpMethod', 'IM_A_TEAPOT'}

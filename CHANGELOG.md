@@ -8,6 +8,31 @@ commitment.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-16
+
+### Added
+
+- **`HtcpcpMethod` — public `StrEnum` of the RFC 2324 §2.2 verbs**
+  (`BREW`, `PROPFIND`, `WHEN`). Members compare equal to their plain
+  string values and mix freely with `http.HTTPMethod` in BlackBull
+  route registrations, so downstream consumers no longer import private
+  constants or define their own.
+- **`IM_A_TEAPOT` re-export** (= `http.HTTPStatus.IM_A_TEAPOT`, 418)
+  for discoverability alongside `HtcpcpMethod`.
+
+### Changed
+
+- `extension.py` registers its routes via `HtcpcpMethod` members
+  instead of private module-level strings (`_BREW` etc.). No wire-level
+  behaviour change — `StrEnum` members are `str` subclasses.
+
+### Fixed
+
+- `blackbull_htcpcp.__version__` no longer drifts from `pyproject.toml`
+  (it reported `0.1.0` on the `0.1.1` release): it now reads the
+  installed distribution's version via `importlib.metadata`, the same
+  single-source-of-truth convention BlackBull itself uses.
+
 ## [0.1.1] — 2026-06-26
 
 ### Changed

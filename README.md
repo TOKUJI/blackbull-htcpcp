@@ -57,6 +57,22 @@ ext.init_app(app)
 
 After `init_app(app)` the live extension sits at `app.extensions['htcpcp']`.  Four routes (BREW / PROPFIND / WHEN / GET) are registered on `/pot`, a readiness route at `/pot/when`, plus an `app.on_error(418)` handler so any 418 the rest of the app emits gets the same `message/coffeepot` body.
 
+The RFC 2324 verbs are exposed as a public `StrEnum`, and 418 is re-exported for discoverability:
+
+```python
+from http import HTTPMethod
+
+from blackbull_htcpcp import HtcpcpMethod, IM_A_TEAPOT
+
+# StrEnum: members compare equal to plain strings and mix freely
+# with http.HTTPMethod in route registrations.
+@app.route(path='/my-pot', methods=[HtcpcpMethod.BREW, HTTPMethod.POST])
+async def my_brew(scope, receive, send): ...
+
+assert HtcpcpMethod.BREW == 'BREW'
+assert IM_A_TEAPOT == 418          # http.HTTPStatus.IM_A_TEAPOT
+```
+
 ## What it implements
 
 - **BREW** — start brewing.  Registered as a first-class `BREW` route on `/pot` (BlackBull ≥ 0.42.1 dispatches arbitrary method tokens); `POST` is kept as a backwards-compatible alias.

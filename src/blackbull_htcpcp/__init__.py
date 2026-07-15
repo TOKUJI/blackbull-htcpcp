@@ -2,12 +2,22 @@
 
 Public surface::
 
-    from blackbull_htcpcp import HtcpcpExtension
+    from blackbull_htcpcp import HtcpcpExtension, HtcpcpMethod, IM_A_TEAPOT
 
 See the package README for usage and configuration.
 """
+from http import HTTPStatus
+from importlib.metadata import version
+
 from blackbull_htcpcp.extension import HtcpcpExtension
+from blackbull_htcpcp.methods import HtcpcpMethod
 
-__version__ = "0.1.0"
+#: RFC 2324 §2.2.2 — re-exported from ``http.HTTPStatus`` (stdlib since
+#: Python 3.9) so it is discoverable alongside :class:`HtcpcpMethod`.
+IM_A_TEAPOT = HTTPStatus.IM_A_TEAPOT  # 418
 
-__all__ = ["HtcpcpExtension"]
+#: Single source of truth is ``pyproject.toml`` (same convention as
+#: blackbull itself); re-run ``pip install -e .`` after a local bump.
+__version__ = version("blackbull-htcpcp")
+
+__all__ = ["HtcpcpExtension", "HtcpcpMethod", "IM_A_TEAPOT"]
