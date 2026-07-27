@@ -19,8 +19,7 @@ import json
 from http import HTTPMethod, HTTPStatus
 from typing import Any
 
-from blackbull import BlackBull, Response, read_body
-from blackbull.headers import Headers
+from blackbull import BlackBull, Connection, Response, read_body
 
 from blackbull_htcpcp.methods import HtcpcpMethod
 
@@ -150,7 +149,7 @@ class HtcpcpExtension:
         self._register_when(app)
 
         @app.route(path=self._path, methods=[HTTPMethod.GET])
-        async def get_pot(scope, receive, send):
+        async def get_pot(conn, receive, send):
             await send(self._build_response(HTTPStatus.OK))
         self._get_handler = get_pot
 
@@ -163,7 +162,7 @@ class HtcpcpExtension:
     def _register_brew(self, app: BlackBull) -> None:
         """Register BREW on the pot path, keeping POST as a backwards-compatible alias."""
         @app.route(path=self._path, methods=[HtcpcpMethod.BREW, HTTPMethod.POST])
-        async def brew_handler(scope, receive, send):
+        async def brew_handler(conn, receive, send):
             # S007: cap the request body before we look at it.
             body = await read_body(receive)
             if len(body) > _MAX_BODY_BYTES:
@@ -173,7 +172,7 @@ class HtcpcpExtension:
                 ))
                 return
 
-            additions, err = self._parse_accept_additions(scope)
+            additions, err = self._parse_accept_additions(conn)
             if err is not None:
                 await send(err)
                 return
@@ -212,7 +211,7 @@ class HtcpcpExtension:
     def _register_propfind(self, app: BlackBull) -> None:
         """Register PROPFIND on the pot path."""
         @app.route(path=self._path, methods=[HtcpcpMethod.PROPFIND])
-        async def propfind_handler(scope, receive, send):
+        async def propfind_handler(conn, receive, send):
             await send(Response(
                 json.dumps({
                     'pot-type': self._pot_type,
@@ -232,7 +231,7 @@ class HtcpcpExtension:
     def _register_when(self, app: BlackBull) -> None:
         """Register WHEN: GET ``<path>/when`` always, plus WHEN on the pot path."""
         @app.route(path=f'{self._path}/when', methods=[HTTPMethod.GET])
-        async def when_handler(scope, receive, send):
+        async def when_handler(conn, receive, send):
             if self._state == 'ready':
                 body = json.dumps({'ready': True, 'when': 'now'})
             elif self._state == 'brewing':
@@ -251,8 +250,8 @@ class HtcpcpExtension:
         self._when_handler = when_handler
 
         @app.route(path=self._path, methods=[HtcpcpMethod.WHEN])
-        async def when_direct(scope, receive, send):
-            await when_handler(scope, receive, send)
+        async def when_direct(conn, receive, send):
+            await when_handler(conn, receive, send)
         self._when_direct_handler = when_direct
 
     # ------------------------------------------------------------------
@@ -260,7 +259,7 @@ class HtcpcpExtension:
     # ------------------------------------------------------------------
 
     def _parse_accept_additions(
-        self, scope: dict,
+        self, conn: Connection,
     ) -> tuple[list[str], Response | None]:
         """Parse and validate ``Accept-Additions``.
 
@@ -268,16 +267,7 @@ class HtcpcpExtension:
         ``([], error_response)`` on failure — the caller forwards the
         error response straight to send.
         """
-        raw_headers = scope.get('headers', Headers([]))
-        getter = getattr(raw_headers, 'get', None)
-        if getter is not None:
-            raw = getter(b'accept-additions', b'')
-        else:
-            raw = b''
-            for name, value in raw_headers:
-                if name.lower() == b'accept-additions':
-                    raw = value
-                    break
+        raw = conn.headers.get(b'accept-additions', b'')
         additions_raw = raw.decode('ascii', errors='replace')
         additions = [a.strip().lower() for a in additions_raw.split(';') if a.strip()]
 
@@ -342,6 +332,6 @@ class HtcpcpExtension:
             content_type=COFFEEPOT_CONTENT_TYPE,
         )
 
-    async def _on_teapot_error(self, _scope, _receive, send):
+    async def _on_teapot_error(self, _conn, _receive, send):
         """Registered via ``app.on_error(418)``."""
         await send(self._teapot_response())

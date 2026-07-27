@@ -8,6 +8,17 @@ commitment.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-27
+
+### Changed
+
+- **Migrate to BlackBull v0.60.0 native `Connection` API.**  All route
+  handlers and the `_parse_accept_additions` helper now use the typed
+  `Connection` object (`conn.headers`, `conn.method`, …) instead of the
+  raw ASGI `scope` dict (`scope.get('headers', …)`, `scope['method']`).
+  The minimum BlackBull dependency is raised from `>= 0.42.1` to
+  `>= 0.60.0`.
+
 ## [0.3.0] — 2026-07-16
 
 ### Added

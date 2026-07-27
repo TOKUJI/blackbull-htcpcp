@@ -598,9 +598,9 @@ class TestSecurityMethodAclBypass:
         app = BlackBull()
         middleware_seen: list[str] = []
 
-        async def audit_mw(scope, receive, send, call_next):
-            middleware_seen.append(scope.get('method', ''))
-            await call_next(scope, receive, send)
+        async def audit_mw(conn, receive, send, call_next):
+            middleware_seen.append(conn.method)
+            await call_next(conn, receive, send)
 
         app.use(audit_mw)
         HtcpcpExtension(app=app)
@@ -616,9 +616,9 @@ class TestSecurityMethodAclBypass:
         app = BlackBull()
         middleware_seen: list[str] = []
 
-        async def audit_mw(scope, receive, send, call_next):
-            middleware_seen.append(scope.get('method', ''))
-            await call_next(scope, receive, send)
+        async def audit_mw(conn, receive, send, call_next):
+            middleware_seen.append(conn.method)
+            await call_next(conn, receive, send)
 
         app.use(audit_mw)
         HtcpcpExtension(app=app)
